@@ -83,7 +83,7 @@ This backend powers the AWS CTF registration and management system. It supports 
 ---
 
 ## Contact
-For any backend/API issues, contact the AWS Web DEV TEAM.
+For any backend/API issues, contact the AWS Web DEV TEAM / Cloud captain.
 
 
 Dev scripts
