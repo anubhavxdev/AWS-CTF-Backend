@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema(
@@ -11,10 +12,21 @@ const UserSchema = new mongoose.Schema(
 		role: { type: String, required: true, enum: ['organizer', 'leader', 'member', 'solo'], default: 'solo' },
 		team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
 		passwordHash: { type: String },
-		isEmailVerified: { type: Boolean, default: false }
+		isEmailVerified: { type: Boolean, default: false },
+		emailVerificationToken: { type: String },
+		emailVerificationExpires: { type: Date },
+		failedLoginAttempts: { type: Number, default: 0 },
+		lockUntil: { type: Date, default: null }
 	},
 	{ timestamps: true }
 );
+
+
+// Utility: Send email (scaffold, replace with real email service)
+UserSchema.statics.sendEmail = async function (to, subject, text) {
+	// Integrate with nodemailer, SendGrid, etc.
+	console.log(`Email to ${to}: ${subject}\n${text}`);
+};
 
 module.exports = mongoose.model('User', UserSchema);
 
