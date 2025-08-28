@@ -56,21 +56,20 @@ router.post('/create-order', requireAuth, async (req, res) => {
 router.post('/verify-order', requireAuth, async (req, res) => {
 	ensureCashfreeConfigured();
 	const { orderId } = req.body;
-	cashfree.PGFetchOrder({ orderId })
+	cashfree.PGOrderFetchPayments({ orderId })
 		.then((response) => {
 			const a = response.data;
 			console.log(a);
-			const orderStatus = a?.order?.order_status || 'unknown';
-			console.log(`Order Status: ${orderStatus}`);
-			if (orderStatus === 'ACTIVE') {
-				return { status: "pending" };
-			} else if (orderStatus === 'PAID') {
-				return { status: "success" };
-			} else if (orderStatus === 'EXPIRED') {
-				return { status: "failed" };
-			} else if (orderStatus === 'TERMINATED') {
-				return { status: "failed" };
+			let getOrderResponse = a?.order?.payments || [];
+			let orderStatus;
+			if (getOrderResponse.filter(transaction => transaction.payment_status === "SUCCESS").length > 0) {
+				orderStatus = "Success"
+			} else if (getOrderResponse.filter(transaction => transaction.payment_status === "PENDING").length > 0) {
+				orderStatus = "Pending"
+			} else {
+				orderStatus = "Failure"
 			}
+			return res.json({ orderStatus });
 		})
 		.catch((error) => {
 			console.error(error);
