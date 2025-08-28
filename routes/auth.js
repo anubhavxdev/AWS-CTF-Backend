@@ -30,11 +30,10 @@ router.post(
 		const emailVerificationToken = crypto.randomBytes(32).toString('hex');
 		const emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 		const user = await User.create({ ...rest, passwordHash, emailVerificationToken, emailVerificationExpires, failedLoginAttempts: 0, lockUntil: null });
-		// Send email (scaffold)
 		await User.sendEmail(
 			user.email,
 			'Verify your email',
-			`Click to verify: https://yourdomain.com/verify-email?token=${emailVerificationToken}`
+			`Click to verify: https://awslpu.xyz/verify/email?token=${emailVerificationToken}`
 		);
 		return res.status(201).json({ id: user._id, message: 'Registration successful. Please verify your email.' });
 	}

@@ -1,66 +1,79 @@
 const express = require('express');
-const Cashfree = require('cashfree-pg');
 const { requireAuth } = require('../middleware/auth');
 const Payment = require('../models/Payment');
 
+const { Cashfree, CFEnvironment } = require("cashfree-pg");
+
 const router = express.Router();
 
+const { CASHFREE_ENVIRONMENT } = process.env;
+
+const cashfree = new Cashfree(
+	CFEnvironment[CASHFREE_ENVIRONMENT] || CFEnvironment.SANDBOX,
+	process.env.CASHFREE_APP_ID || '',
+	process.env.CASHFREE_SECRET_KEY || ''
+);
+
 function ensureCashfreeConfigured() {
-	try {
-		Cashfree.XClientId = process.env.CASHFREE_APP_ID || '';
-		Cashfree.XClientSecret = process.env.CASHFREE_SECRET_KEY || '';
-		const env = (process.env.CASHFREE_ENV || 'sandbox').toLowerCase();
-		if (Cashfree && Cashfree.Environment) {
-			const sandbox = Cashfree.Environment.SANDBOX || Cashfree.Environment.Sandbox;
-			const production = Cashfree.Environment.PRODUCTION || Cashfree.Environment.Production;
-			Cashfree.XEnvironment = env === 'production' ? production : sandbox;
-		}
-	} catch (_) {
-		// ignore; will use SDK defaults if any
+	if (!cashfree.XClientId || !cashfree.XClientSecret) {
+		throw new Error('Cashfree SDK not configured properly');
 	}
 }
 
-// Create order for a payment record
+function createOrder(body) {
+	var request = {
+		order_amount: body.amount,
+		order_currency: "INR",
+		customer_details: {
+			customer_email: req.user.email,
+			customer_phone: req.user.phone,
+			customer_name: req.user.name,
+			customer_regid: req.user.regid
+		},
+		order_meta: {
+			return_url: `${process.env.FRONTEND_URL}/payment/success`
+		}
+	};
+
+	cashfree.PGCreateOrder(request)
+	.then((response) => {
+		var a = response.data;
+		console.log(a);
+		return a;
+		//After successfully creating an order, you will receive a unique `order_id` and `payment_session_id` that you need for subsequent steps.
+	})
+	.catch((error) => {
+		console.error(error);
+	})
+}
+
 router.post('/create-order', requireAuth, async (req, res) => {
 	ensureCashfreeConfigured();
-	const { paymentId } = req.body;
-	const payment = await Payment.findById(paymentId);
-	if (!payment) return res.status(404).json({ message: 'Payment not found' });
-	const amount = payment.amountInPaise / 100;
-	const orderId = `ORD_${payment._id}`;
-	try {
-		const response = await Cashfree.PGCreateOrder({
-			order_amount: amount,
-			order_currency: 'INR',
-			order_id: orderId,
-			customer_details: { customer_id: String(payment.payer), customer_email: 'na@example.com', customer_phone: '0000000000' }
-		});
-		payment.cashfreeOrderId = response?.data?.order_id || orderId;
-		await payment.save();
-		return res.json({ order: response.data });
-	} catch (err) {
-		return res.status(500).json({ message: 'Failed to create order', error: err?.response?.data || err.message });
-	}
+	const createOrderData = createOrder(req.body);
+	return createOrderData;
 });
 
-// Webhook to handle payment status
-router.post('/webhook', express.json({ type: '*/*' }), async (req, res) => {
-	try {
-		const data = req.body;
-		const orderId = data?.order?.order_id || data?.order_id || '';
-		const payment = await Payment.findOne({ cashfreeOrderId: orderId });
-		if (!payment) return res.status(200).send('ok');
-		const status = (data?.payment?.payment_status || data?.order_status || 'pending').toLowerCase();
-		if (status === 'success' || status === 'paid') payment.status = 'success';
-		else if (status === 'failed') payment.status = 'failed';
-		else payment.status = 'pending';
-		payment.cashfreePaymentId = data?.payment?.payment_id || payment.cashfreePaymentId;
-		payment.referenceId = data?.payment?.cf_payment_id || payment.referenceId;
-		await payment.save();
-		return res.status(200).send('ok');
-	} catch (e) {
-		return res.status(200).send('ok');
-	}
+router.post('/verify-order', requireAuth, async (req, res) => {
+	ensureCashfreeConfigured();
+	const { orderId } = req.body;
+	cashfree.PGOrderFetchPayments({ orderId })
+		.then((response) => {
+			const a = response.data;
+			console.log(a);
+			let getOrderResponse = a?.order?.payments || [];
+			let orderStatus;
+			if (getOrderResponse.filter(transaction => transaction.payment_status === "SUCCESS").length > 0) {
+				orderStatus = "Success"
+			} else if (getOrderResponse.filter(transaction => transaction.payment_status === "PENDING").length > 0) {
+				orderStatus = "Pending"
+			} else {
+				orderStatus = "Failure"
+			}
+			return res.json({ orderStatus });
+		})
+		.catch((error) => {
+			console.error(error);
+		});
 });
 
 module.exports = router;
