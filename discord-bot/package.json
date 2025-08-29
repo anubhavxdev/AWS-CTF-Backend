@@ -1,0 +1,14 @@
+{
+  "name": "aws-ctf-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for AWS CTF event integrated with backend API.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "axios": "^1.6.8",
+    "dotenv": "^17.2.1"
+  }
+}
